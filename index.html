@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Лучики</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--ink:#2a2146;--card:rgba(255,255,255,.86);--btn:#7c5cff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#fff;--card:rgba(32,22,66,.82)}}
+:root[data-theme="dark"]{--ink:#fff;--card:rgba(32,22,66,.82)}
+html,body{margin:0;height:100%;overflow:hidden;background:#c9b8ff;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+.card{background:var(--card);color:var(--ink);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:28px;padding:28px 26px;text-align:center;max-width:320px;width:100%;box-shadow:0 20px 60px rgba(70,40,160,.3);animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+h1{margin:0 0 6px;font-size:42px;letter-spacing:-1px}
+p{margin:6px 0;font-size:15px;line-height:1.4;opacity:.8}
+.big{font-size:56px;font-weight:800;margin:4px 0;line-height:1}
+button{margin-top:18px;border:0;border-radius:18px;background:var(--btn);color:#fff;font-size:18px;font-weight:700;padding:15px 34px;box-shadow:0 8px 20px rgba(124,92,255,.45);cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.96)}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 3px;vertical-align:-1px}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="ov"></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+let W,H,dpr,S=1;
+function rs(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);S=Math.min(W/390,H/760,1.3);}
+addEventListener('resize',rs);rs();
+let best=0;try{best=+localStorage.getItem('luchiki-best')||0}catch(e){}
+let st='menu',score=0,lives=3,combo=0,maxCombo=0,orbs=[],parts=[],texts=[],spawn=0,t=0,shake=0,x=W/2,tx=W/2,trail=[];
+let ac=null;
+const BOT_LINK='https://t.me/ВАШ_БОТ/ВАШ_КОРОТКИЙ_ИМЯ'; // замени на свою ссылку
+const TG=window.Telegram&&window.Telegram.WebApp;
+function today(){return new Date().toISOString().slice(0,10)}
+function share(){const u='https://t.me/share/url?url='+encodeURIComponent(BOT_LINK)+'&text='+encodeURIComponent('Я набрал '+score+' очков в Лучиках! Сможешь больше?');try{TG&&TG.openTelegramLink?TG.openTelegramLink(u):window.open(u,'_blank')}catch(e){window.open(u,'_blank')}}
+function blip(f,d=.12,type='sine',v=.07){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+function menu(){st='menu';ov.innerHTML=`<div class="card"><h1>Лучики ✦</h1><p>Води пальцем и лови светящиеся шарики.<br>Тёмные шарики не трогай.</p><p style="margin-top:12px"><span class="dot" style="background:#ff7ab8"></span><span class="dot" style="background:#ffc84a"></span><span class="dot" style="background:#4ad0ff"></span><span class="dot" style="background:#3a2a66"></span></p>${best?`<p>Рекорд: <b>${best}</b></p>`:''}<button id="go">Играть</button></div>`;document.getElementById('go').onclick=start}
+function over(){st='over';const nb=score>best;if(nb){best=score;try{localStorage.setItem('luchiki-best',best)}catch(e){}try{TG&&TG.CloudStorage&&TG.CloudStorage.setItem('best',String(best))}catch(e){}}
+ov.innerHTML=`<div class="card"><p>Игра окончена</p><div class="big">${score}</div><p>${nb?'🎉 Новый рекорд!':'Рекорд: '+best}</p><p>Лучшее комбо: ×${maxCombo}</p><button id="go">Ещё раз</button><br><button id="sh" style="background:#2aabee;margin-top:10px">Поделиться</button></div>`;document.getElementById('go').onclick=start;document.getElementById('sh').onclick=share}
+function start(){score=0;lives=3;combo=0;maxCombo=0;orbs=[];parts=[];texts=[];spawn=0;t=0;st='play';ov.innerHTML='';x=tx=W/2;blip(520,.15);try{if(localStorage.getItem('luchiki-day')!==today()){localStorage.setItem('luchiki-day',today());score=50;addText(W/2,H*.4,'Ежедневный бонус +50','#fff')}}catch(e){}}
+function burst(px,py,col,n=14,sp=160){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=(.3+Math.random())*sp*S;parts.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,l:1,c:col,r:2+Math.random()*3*S})}}
+function addText(px,py,s,col){texts.push({x:px,y:py,s,c:col,l:1})}
+const hues=[335,42,195,150,270];
+function mk(){const lvl=Math.min(score/400,1),bad=Math.random()<.14+.2*lvl,gold=!bad&&Math.random()<.06,r=(bad?17:15+Math.random()*7)*S;
+orbs.push({x:r+Math.random()*(W-2*r),y:-r*2,r,vy:(150+170*lvl+Math.random()*60)*S,type:bad?'bad':gold?'gold':'good',h:hues[Math.random()*hues.length|0],ph:Math.random()*6,sw:(Math.random()-.5)*50*S})}
+function hsl(h,s,l,a=1){return`hsla(${h},${s}%,${l}%,${a})`}
+function update(dt){t+=dt;x+=(tx-x)*Math.min(1,dt*16);trail.push({x,l:1});if(trail.length>8)trail.shift();
+spawn-=dt;if(spawn<=0){mk();spawn=Math.max(.3,.85-Math.min(score/400,1)*.5)*(.7+Math.random()*.6)}
+const cy=H-(110*S)-(env('bottom')),cw=(52+Math.min(combo,20)*.8)*S;
+for(const o of orbs){o.y+=o.vy*dt;o.x+=Math.sin(t*2+o.ph)*o.sw*dt;o.ph+=dt;
+if(!o.dead&&o.y+o.r>cy-8*S&&o.y-o.r<cy+16*S&&Math.abs(o.x-x)<cw+o.r*.5){o.dead=1;
+if(o.type==='bad'){lives--;combo=0;shake=.4;burst(o.x,o.y,'#3a2a66',18,220);addText(o.x,cy-30,'−1 ♥','#ff4d7a');blip(110,.3,'sawtooth',.09);try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
+if(lives<=0){burst(x,cy,'#fff',30,260);setTimeout(over,500);st='dying'}}
+else{combo++;maxCombo=Math.max(maxCombo,combo);const p=(o.type==='gold'?50:10)*(1+Math.floor(combo/5));score+=p;burst(o.x,o.y,hsl(o.h,90,65),o.type==='gold'?26:14);addText(o.x,cy-30,'+'+p,o.type==='gold'?'#ffb800':'#fff');blip(420+Math.min(combo,24)*30,.14)}}
+else if(o.y-o.r>H&&!o.dead){o.dead=1;if(o.type!=='bad'&&combo>0){combo=0}}}
+orbs=orbs.filter(o=>!o.dead);
+for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=380*dt;p.l-=dt*1.6}parts=parts.filter(p=>p.l>0);
+for(const q of texts){q.y-=50*dt;q.l-=dt*1.3}texts=texts.filter(q=>q.l>0);
+for(const q of trail)q.l-=dt*4;shake=Math.max(0,shake-dt)}
+function env(side){return 0}
+function draw(){const hh=(t*8+260)%360;
+const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,hsl(hh,85,82));g.addColorStop(.5,hsl(hh+60,85,84));g.addColorStop(1,hsl(hh+130,85,80));
+ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+// soft blobs
+for(let i=0;i<4;i++){const bx=W*(.5+.4*Math.sin(t*.3+i*1.7)),by=H*(.5+.4*Math.cos(t*.25+i*2.3)),r=W*.55,b=ctx.createRadialGradient(bx,by,0,bx,by,r);b.addColorStop(0,hsl(hh+i*70,95,88,.7));b.addColorStop(1,hsl(hh+i*70,95,88,0));ctx.fillStyle=b;ctx.fillRect(0,0,W,H)}
+ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*14*shake,(Math.random()-.5)*14*shake);
+const cy=H-110*S;
+for(const o of orbs){const r=o.r;
+if(o.type==='bad'){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(t*1.5+o.ph);ctx.fillStyle='#3a2a66';ctx.beginPath();for(let i=0;i<16;i++){const a=i/16*6.283,rr=i%2?r*.75:r*1.2;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}ctx.closePath();ctx.fill();ctx.fillStyle='#ff4d7a';ctx.beginPath();ctx.arc(-r*.25,0,r*.12,0,6.3);ctx.arc(r*.25,0,r*.12,0,6.3);ctx.fill();ctx.restore();continue}
+const hue=o.type==='gold'?45:o.h,gl=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,r*2.6);gl.addColorStop(0,hsl(hue,100,70,.55));gl.addColorStop(1,hsl(hue,100,70,0));ctx.fillStyle=gl;ctx.beginPath();ctx.arc(o.x,o.y,r*2.6,0,6.3);ctx.fill();
+const b=ctx.createRadialGradient(o.x-r*.35,o.y-r*.35,r*.1,o.x,o.y,r);b.addColorStop(0,'#fff');b.addColorStop(.35,hsl(hue,100,75));b.addColorStop(1,hsl(hue,90,58));ctx.fillStyle=b;ctx.beginPath();ctx.arc(o.x,o.y,r,0,6.3);ctx.fill();
+if(o.type==='gold'){ctx.fillStyle='#fff';ctx.font=`800 ${r*1.1}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',o.x,o.y+1)}}
+// catcher
+if(st!=='dying'||lives>0){const cw=(52+Math.min(combo,20)*.8)*S;
+for(const q of trail){if(q.l>0){ctx.fillStyle=`rgba(255,255,255,${q.l*.18})`;ctx.beginPath();ctx.ellipse(q.x,cy+10*S,cw*1.05,9*S,0,0,6.3);ctx.fill()}}
+const gl=ctx.createRadialGradient(x,cy,0,x,cy,cw*2);gl.addColorStop(0,'rgba(255,255,255,.6)');gl.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=gl;ctx.fillRect(x-cw*2,cy-cw*2,cw*4,cw*4);
+const pg=ctx.createLinearGradient(x-cw,cy,x+cw,cy);pg.addColorStop(0,'#7c5cff');pg.addColorStop(.5,'#ff7ab8');pg.addColorStop(1,'#ffc84a');
+ctx.fillStyle=pg;ctx.beginPath();ctx.roundRect?ctx.roundRect(x-cw,cy-7*S,cw*2,22*S,12*S):ctx.rect(x-cw,cy-7*S,cw*2,22*S);ctx.fill();
+ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.roundRect?ctx.roundRect(x-cw+8*S,cy-4*S,cw*2-16*S,6*S,3*S):ctx.rect(x-cw,cy-4,cw*2,6);ctx.fill()}
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.l);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.3);ctx.fill()}ctx.globalAlpha=1;
+ctx.textAlign='center';ctx.textBaseline='middle';
+for(const q of texts){ctx.globalAlpha=Math.max(0,q.l);ctx.fillStyle=q.c;ctx.font=`800 ${22*S}px sans-serif`;ctx.shadowColor='rgba(60,30,140,.5)';ctx.shadowBlur=6;ctx.fillText(q.s,q.x,q.y);ctx.shadowBlur=0}ctx.globalAlpha=1;
+ctx.restore();
+// HUD
+if(st==='play'||st==='dying'){const top=Math.max(18,parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat'))||0)+18;
+ctx.textAlign='left';ctx.fillStyle='#2a2146';ctx.font=`800 ${34*S}px sans-serif`;ctx.fillText(score,20,top+20*S);
+ctx.textAlign='right';ctx.font=`${26*S}px sans-serif`;for(let i=0;i<3;i++){ctx.fillStyle=i<lives?'#ff4d7a':'rgba(42,33,70,.2)';ctx.fillText('♥',W-20-i*30*S,top+20*S)}
+if(combo>=3){ctx.textAlign='center';ctx.fillStyle='rgba(42,33,70,.85)';ctx.font=`800 ${(20+Math.min(combo,20)*.5)*S}px sans-serif`;ctx.fillText('×'+combo+' комбо',W/2,top+60*S)}}}
+let last=performance.now();
+function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;if(st==='play'||st==='dying')update(dt);else{t+=dt;x+=(tx-x)*.2}draw();requestAnimationFrame(loop)}
+addEventListener('pointermove',e=>{tx=e.clientX});addEventListener('pointerdown',e=>{tx=e.clientX});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')tx-=60;if(e.key==='ArrowRight')tx+=60;tx=Math.max(20,Math.min(W-20,tx))});
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+document.documentElement.style.setProperty('--sat','0');
+try{if(TG){TG.ready();TG.expand();TG.setHeaderColor&&TG.setHeaderColor('#c9b8ff');TG.setBackgroundColor&&TG.setBackgroundColor('#c9b8ff');TG.CloudStorage&&TG.CloudStorage.getItem('best',(e,v)=>{if(!e&&+v>best){best=+v;if(st==='menu')menu()}})}}catch(e){}
+menu();requestAnimationFrame(loop);
+</script></body></html>
