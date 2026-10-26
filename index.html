@@ -29,7 +29,7 @@ addEventListener('resize',rs);rs();
 let best=0;try{best=+localStorage.getItem('luchiki-best')||0}catch(e){}
 let st='menu',score=0,lives=3,combo=0,maxCombo=0,orbs=[],parts=[],texts=[],spawn=0,t=0,shake=0,x=W/2,tx=W/2,trail=[];
 let ac=null;
-const BOT_LINK='https://t.me/ВАШ_БОТ/ВАШ_КОРОТКИЙ_ИМЯ'; // замени на свою ссылку
+const BOT_LINK='https://t.me/luchiki_game_bot'; // замени на свою ссылку
 const TG=window.Telegram&&window.Telegram.WebApp;
 function today(){return new Date().toISOString().slice(0,10)}
 function share(){const u='https://t.me/share/url?url='+encodeURIComponent(BOT_LINK)+'&text='+encodeURIComponent('Я набрал '+score+' очков в Лучиках! Сможешь больше?');try{TG&&TG.openTelegramLink?TG.openTelegramLink(u):window.open(u,'_blank')}catch(e){window.open(u,'_blank')}}
@@ -57,6 +57,7 @@ orbs=orbs.filter(o=>!o.dead);
 for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=380*dt;p.l-=dt*1.6}parts=parts.filter(p=>p.l>0);
 for(const q of texts){q.y-=50*dt;q.l-=dt*1.3}texts=texts.filter(q=>q.l>0);
 for(const q of trail)q.l-=dt*4;shake=Math.max(0,shake-dt)}
+function heart(cx,cy,r,full){ctx.beginPath();ctx.moveTo(cx,cy+r*.55);ctx.bezierCurveTo(cx-r*1.1,cy-r*.1,cx-r*.55,cy-r*.85,cx,cy-r*.3);ctx.bezierCurveTo(cx+r*.55,cy-r*.85,cx+r*1.1,cy-r*.1,cx,cy+r*.55);ctx.closePath();if(full){ctx.fillStyle='#ff4d7a';ctx.fill()}else{ctx.lineWidth=2;ctx.strokeStyle='rgba(42,33,70,.3)';ctx.stroke()}}
 function env(side){return 0}
 function draw(){const hh=(t*8+260)%360;
 const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,hsl(hh,85,82));g.addColorStop(.5,hsl(hh+60,85,84));g.addColorStop(1,hsl(hh+130,85,80));
@@ -84,7 +85,7 @@ ctx.restore();
 // HUD
 if(st==='play'||st==='dying'){const top=Math.max(18,parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat'))||0)+18;
 ctx.textAlign='left';ctx.fillStyle='#2a2146';ctx.font=`800 ${34*S}px sans-serif`;ctx.fillText(score,20,top+20*S);
-ctx.textAlign='right';ctx.font=`${26*S}px sans-serif`;for(let i=0;i<3;i++){ctx.fillStyle=i<lives?'#ff4d7a':'rgba(42,33,70,.2)';ctx.fillText('♥',W-20-i*30*S,top+20*S)}
+for(let i=0;i<3;i++){heart(W-34*S-i*32*S,top+20*S,13*S,i<lives)}
 if(combo>=3){ctx.textAlign='center';ctx.fillStyle='rgba(42,33,70,.85)';ctx.font=`800 ${(20+Math.min(combo,20)*.5)*S}px sans-serif`;ctx.fillText('×'+combo+' комбо',W/2,top+60*S)}}}
 let last=performance.now();
 function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;if(st==='play'||st==='dying')update(dt);else{t+=dt;x+=(tx-x)*.2}draw();requestAnimationFrame(loop)}
